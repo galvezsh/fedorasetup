@@ -109,7 +109,7 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
-while [[ "$option" -ne 6 ]]; do
+while [ "$option" -ne 6 ]; do
 
   echo ""
   echo "Options: "
