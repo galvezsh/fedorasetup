@@ -134,8 +134,8 @@ function fullCustomization() {
 function postCustomization() {
 
   echo "Tweaking the new Fedora..."
-  gsettings set org.gnome.desktop.wm.preferences button-layout ":minimize,maximize,close"
-  gsettings set org.gnome.desktop.sound allow-volume-above-100-percent true
+  sudo -u $REAL_USER gsettings set org.gnome.desktop.wm.preferences button-layout ":minimize,maximize,close"
+  sudo -u $REAL_USER gsettings set org.gnome.desktop.sound allow-volume-above-100-percent true
 
   # Settin up the variable enviorment
   echo "alias ll=\"ls -lhva\"" >> $REAL_HOME/.bashrc
