@@ -4,13 +4,19 @@
 ## VARIABLES ###################################
 ################################################
 
+REAL_USER=${SUDO_USER:-$USER}
+REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
+
 localThemeFolder="./themes"
 localIconsFolder="./icons"
 
-userThemeFolder="$HOME/.theme"
-userIconsFolder="$HOME/.icons"
+userThemeFolder="$REAL_HOME/.themes"
+userIconsFolder="$REAL_HOME/.icons"
 
 dnfConfigFile="/etc/dnf/dnf.conf"
+hostnameFile="/etc/hostname"
+
+GRAAL_URL="https://download.oracle.com/graalvm/25/latest/graalvm-jdk-25_linux-x64_bin.tar.gz"
 
 option=0
 
@@ -44,7 +50,7 @@ function removeApps() {
 function installApps() {
 
   echo "Installing usefull apps..."
-  sudo dnf install -y vlc obs-studio gnome-tweaks fastfetch btop htop
+  sudo dnf install -y vlc obs-studio gnome-tweaks fastfetch btop htop intel-undervolt tlp
 
   sudo flatpak install -y flathub com.mattjakeman.ExtensionManager
   sudo flatpak install -y flathub io.github.realmazharhussain.GdmSettings
@@ -52,28 +58,22 @@ function installApps() {
   sudo flatpak install -y flathub org.onlyoffice.desktopeditors
 
   read -p "Do you want to install some games? (y/n): " installGames
-  if [ "$installGames" == "y" ]; then
+  if [[ "$installGames" =~ ^[Yy]$ ]]; then
     sudo flatpak install -y flathub org.prismlauncher.PrismLauncher
     sudo flatpak install -y flathub org.vinegarhq.Sober
     sudo dnf install -y steam
   fi
 
   read -p "Do you want to install Docker from the original repository? (y/n): " installDocker
-  if [ "$installDocker" == "y" ]; then
+  if [[ "$installDocker" =~ ^[Yy]$ ]]; then
     sudo dnf -y install dnf-plugins-core
     sudo dnf-3 config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo
     sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
     sudo systemctl start docker
   fi
-
-  gsettings&
-
-  gsettings set org.gnome.desktop.wm.preferences button-layout ":minimize,maximize,close"
-  gsettings set org.gnome.desktop.sound allow-volume-above-100-percent true
-
 }
 
-function installMediaCodecs() {
+function installCodecs() {
 
   echo "Installing media codecs..."
   sudo dnf install -y https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm
@@ -84,9 +84,11 @@ function installMediaCodecs() {
   case $graphicsCard in
     i)
       sudo dnf install -y intel-media-driver --allowerasing
+      sudo dnf install -y intel-gpu-tools
       ;;
     a)
       sudo dnf install -y mesa-va-drivers-freeworld --allowerasing
+      sudo dnf install -y radeontop
       ;;
     *)
       echo "Invalid option, please select between Intel or AMD..."
@@ -94,7 +96,7 @@ function installMediaCodecs() {
   esac
 }
 
-function customize() {
+function mountThemes() {
 
   echo "Installing some themes for GNOME..."
   if [ ! -d "$userThemeFolder" ]; then
@@ -121,12 +123,66 @@ function customize() {
 
 function fullCustomization() {
 
+  echo "Configuring the new Fedora..."
   optimizeDNF
   removeApps
   installApps
-  installMediaCodecs
-  customize
+  installCodecs
+  mountThemes
+}
 
+function postCustomization() {
+
+  echo "Tweaking the new Fedora..."
+  gsettings set org.gnome.desktop.wm.preferences button-layout ":minimize,maximize,close"
+  gsettings set org.gnome.desktop.sound allow-volume-above-100-percent true
+
+  # Settin up the variable enviorment
+  echo "alias ll=\"ls -lhva\"" >> $REAL_HOME/.bashrc
+  echo "alias stop=\"sudo btop\"" >> $REAL_HOME/.bashrc
+  echo "alias rtop=\"sudo radeontop\"" >> $REAL_HOME/.bashrc
+  echo "alias utop=\"sudo intel_gpu_top\"" >> $REAL_HOME/.bashrc
+  echo "export JAVA_HOME=\"/opt/java\"" >> $REAL_HOME/.bashrc
+  echo "export PATH=\"\$JAVA_HOME/bin:\$PATH\"" >> $REAL_HOME/.bashrc
+  echo "fastfetch" >> $REAL_HOME/.bashrc
+
+  # Installing Java 25
+  wget -qO /tmp/graalvm.tar.gz "$GRAAL_URL"
+  sudo tar -xzf /tmp/graalvm.tar.gz -C /opt
+  sudo rm -rf /opt/java
+  GRAAL_DIR=$(tar -tf /tmp/graalvm.tar.gz | head -1 | cut -f1 -d"/")
+  sudo mv "/opt/$GRAAL_DIR" /opt/java
+  rm /tmp/graalvm.tar.gz
+
+  # Change the machine hostname
+  read -p "Do you want to change the machine Hostname?: (y/n) " chHostname
+  if [[ "$chHostname" =~ ^[Yy]$ ]]; then
+    read -p "Insert the new hostname: " hostname
+    sudo tee "$hostnameFile" > /dev/null <<EOF
+    $hostname
+EOF
+  fi
+
+  # Install the propiertary NVIDIA drivers
+  read -p "¿Do you want to install the NVIDIA drivers for you graphics card? (y/n): " nvidiaDrivers
+  if [[ "$nvidiaDrivers" =~ ^[Yy]$ ]]; then
+    sudo dnf install -y akmod-nvidia xorg-x11-drv-nvidia-cuda
+    echo "Completed. You may have to WAIT FOR REBOOT your computer, around 3-5 minutes until the compilation completes."
+  fi
+
+  echo "Post configuration completed. Now i recommend some extensions for GNOME to improve the natural experiece of linux"
+  echo ""
+  echo "I recommend the follow extensions:"
+  echo "=> User themes (gcampax) | Gives the capacity to change the themes and icons in gnome-tweaks"
+  echo "=> Blur my shell (aunetx) | Does exacly what the name says"
+  echo "=> Coverflow Alt-Tab (palatis) | A 3D carrusel for the Alt-Tab"
+  echo "=> Desktop Cube (schneegans) | 3D effect when switching working spaces"
+  echo "=> Clipboard Indicator (tudmotu) | Add a small clipboard indicator (for history) in the panel center"
+  echo "=> Bluetooth Battery Meter (maniacx) | Add a detailed icon of the battery of the bluetooth device"
+  echo "=> Caffeine (patapon) | Add a new button on the panel center for override the suspension and screensaver timer"
+  echo "=> Vitals (CoreCoding) | Add a few icons in the top panel for the system status"
+  echo "=> Weather O'Clock (CleoMenezesJr) | Add the weather in the center of the panel"
+  echo "=> No overview at start-up (fthx) | Do what the name says"
 }
 
 ################################################
@@ -142,45 +198,49 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
-while [ "$option" -ne 6 ]; do
+while [ "$option" -ne 8 ]; do
 
   echo ""
   echo "Options: "
-  echo "1. Full optimization"
-  echo "2. Optimize DNF"
-  echo "3. Remove usless apps"
-  echo "4. Install useful apps"
-  echo "5. Install media codecs"
-  echo "6. Mount themes & icons"
-  echo "7. Exit program"
+  echo "1. Full custumization"
+  echo "2. Post customization script"
+  echo ""
+  echo "3. Optimize DNF"
+  echo "4. Remove usless apps"
+  echo "5. Install useful apps"
+  echo "6. Install media codecs"
+  echo "7. Mount themes & icons"
+  echo "8. Exit program"
 
   read -p "Select a option: " option
 
   case $option in
     1)
-      echo "Building the new Fedora..."
       fullCustomization
       ;;
     2)
-      optimizeDNF
+      postCustomization
       ;;
     3)
-      removeApps
+      optimizeDNF
       ;;
     4)
-      installApps
+      removeApps
       ;;
     5)
-      installMediaCodecs
+      installApps
       ;;
     6)
-      customize
+      installCodecs
       ;;
     7)
+      mountThemes
+      ;;
+    8)
       echo "Exiting program..."
       ;;
     *)
-      echo "Invalid option, please select between 1 and 6..."
+      echo "Invalid option, please select between 1 and 8..."
       ;;
   esac
 done
