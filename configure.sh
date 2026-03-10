@@ -50,18 +50,33 @@ function removeApps() {
 function installApps() {
 
   echo "Installing usefull apps..."
-  sudo dnf install -y vlc obs-studio gnome-tweaks fastfetch btop htop intel-undervolt tlp
+  sudo dnf install -y vlc gnome-tweaks fastfetch btop htop tlp
 
   sudo flatpak install -y flathub com.mattjakeman.ExtensionManager
   sudo flatpak install -y flathub io.github.realmazharhussain.GdmSettings
   sudo flatpak install -y flathub org.jellyfin.JellyfinDesktop
-  sudo flatpak install -y flathub org.onlyoffice.desktopeditors
 
-  read -p "Do you want to install some games? (y/n): " installGames
+  read -p "Do you want to install more browsers? (Chromium, Brave) (y/n): " installBrowsers
+  if [[ "$installBrowsers" =~ ^[Yy]$ ]]; then
+    sudo dnf install -y chromium
+    sudo flatpak install -y flathub com.brave.Browser
+  fi
+  read -p "Do you want to install productivity apps? (Audacity, OBS Studio, GIMP, OnlyOffice, Kdenlive) (y/n): " installProductivity
+  if [[ "$installProductivity" =~ ^[Yy]$ ]]; then
+    sudo dnf install -y audacity obs-studio gimp kdenlive
+    sudo flatpak install -y flathub org.onlyoffice.desktopeditors
+  fi
+
+  read -p "Do you want to install some games launchers? (Steam, Prism Launcher, Sober, AntiMicroX) (y/n): " installGames
   if [[ "$installGames" =~ ^[Yy]$ ]]; then
+    sudo dnf install -y steam antimicrox
     sudo flatpak install -y flathub org.prismlauncher.PrismLauncher
     sudo flatpak install -y flathub org.vinegarhq.Sober
-    sudo dnf install -y steam
+  fi
+
+  read -p "Do you want to install Bottles? A Windows apps emulator (y/n): " installBottles
+  if [[ "$installBottles" =~ ^[Yy]$ ]]; then
+    sudo flatpak install -y flathub io.github.bottlesproject.Bottles
   fi
 
   read -p "Do you want to install Docker from the original repository? (y/n): " installDocker
